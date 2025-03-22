@@ -4,7 +4,7 @@ import os
 from bson import ObjectId
 from utils import (
     allowed_file, process_image, process_pdf, ask_llm,
-    patients_collection, UPLOAD_FOLDER
+    patients_collection, UPLOAD_FOLDER, reports_collection
 )
 from werkzeug.utils import secure_filename
 
@@ -14,6 +14,8 @@ CORS(app)
 # Configuration
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB limit
+
+
 
 @app.route('/extract-text', methods=['POST'])
 def extract_text():
@@ -25,6 +27,17 @@ def extract_text():
         return jsonify({'error': 'Invalid file'}), 400
 
     try:
+        # Get patient_id and file_category from the request
+        patient_id = request.form.get('patient_id')
+        file_category = request.form.get('file_category')
+
+        if not patient_id or not file_category:
+            return jsonify({'error': 'patient_id and file_category are required'}), 400
+
+        # Validate if the patient exists
+        if not patients_collection.find_one({"_id": ObjectId(patient_id)}):
+            return jsonify({'error': 'Patient not found'}), 404
+
         filename = secure_filename(file.filename)
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(filepath)
@@ -35,14 +48,32 @@ def extract_text():
         # Get structured data from LLM
         structured_data = ask_llm(raw_text)
         
+        # Save structured data to MongoDB
+        report_data = {
+            "patient_id": ObjectId(patient_id),  # Ensure patient_id is stored as ObjectId
+            "file_category": file_category,
+            "raw_text": raw_text,
+            "structured_data": structured_data,
+            "filename": filename,
+        }
+        reports_collection.insert_one(report_data)
+        
         os.remove(filepath)
         return jsonify({
             'raw_text': raw_text,
-            'structured_data': structured_data
+            'structured_data': structured_data,
+            'message': 'Report saved successfully'
         }), 200
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+if __name__ == '__main__':
+    if not os.path.exists(UPLOAD_FOLDER):
+        os.makedirs(UPLOAD_FOLDER)
+    app.run(host='0.0.0.0', port=5000, debug=True)
+
+
 
 @app.route('/add-patient', methods=['POST'])
 def add_patient():

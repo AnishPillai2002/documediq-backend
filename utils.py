@@ -21,6 +21,7 @@ mongo_uri = os.getenv("MONGO_URI")
 client = MongoClient(mongo_uri)
 db = client["medical_db"]
 patients_collection = db["patients"]
+reports_collection=db["files"]
 
 # Initialize Azure AI Client
 azure_client = ChatCompletionsClient(
