@@ -66,7 +66,7 @@ def ask_llm(raw_text):
                   },
                   "ordering_physician_info": {
                     "physician_id": "Unique identifier for the physician",
-                    "name": "Physician’s full name",
+                    "name": "Physician's full name",
                     "contact_info": {
                       "phone": "Physician's contact number",
                       "email": "Physician's email address"
@@ -88,7 +88,7 @@ def ask_llm(raw_text):
                       "flag": "Indicates if the result is normal, high, or low"
                     }
                   ],
-                  "interpretation": "Doctor’s interpretation of test results",
+                  "interpretation": "Doctor's interpretation of test results",
                   "report_date": "Date of report generation (YYYY-MM-DD)",
                   "laboratory_info": {
                     "lab_id": "Unique identifier for the laboratory",
@@ -107,7 +107,7 @@ def ask_llm(raw_text):
                 - Exclude explanations, headers, or unnecessary formatting.
                 - Convert dates to **ISO 8601** format (YYYY-MM-DD or YYYY-MM-DD HH:MM:SS).
                 - Ensure accurate mapping of data.
-                - Should return clean json without \ or n character.
+                
 
                 **Your output must be only a JSON object without any additional text.**
                 """),
@@ -119,15 +119,21 @@ def ask_llm(raw_text):
             top_p=1
         )
 
-        # Ensure the response is a valid JSON string
-        json_output = response.choices[0].message.content.strip()
+        # Get the response content
+        json_string = response.choices[0].message.content.strip()
 
-        # If the response still includes triple backticks, clean them
-        if json_output.startswith("```json"):
-            json_output = json_output[7:-3].strip()  # Remove markdown formatting
+        # Clean the response if it has markdown formatting
+        if json_string.startswith("```json"):
+            json_string = json_string[7:].strip()
+        if json_string.endswith("```"):
+            json_string = json_string[:-3].strip()
 
-        return json_output
+        # Parse the string to a JSON object and then convert back to a properly formatted JSON string
+        import json
+        parsed_json = json.loads(json_string)
+        
+        # Return the parsed JSON object directly (not as a string)
+        return parsed_json
 
     except Exception as e:
-        return str(e)
-
+        return {"error": str(e)}
