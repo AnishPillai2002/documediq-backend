@@ -1,26 +1,26 @@
 from flask import Flask, request, jsonify
-from flask_cors import CORS
+from flask_cors import CORS, cross_origin
 import os
 from bson import ObjectId
 from utils import (
-    allowed_file, process_image, process_pdf, ask_llm,
+    allowed_file, process_pdf, ask_llm,
     patients_collection, UPLOAD_FOLDER, reports_collection
 )
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, origins=['http://localhost:3001'])
 
 # Configuration
 app.config['UPLOAD_FOLDER'] = os.path.join(os.getcwd(), UPLOAD_FOLDER)
 
 if not os.path.exists(app.config['UPLOAD_FOLDER']):
     os.makedirs(app.config['UPLOAD_FOLDER'])
-    
+
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB limit
 
-
 @app.route('/extract-text', methods=['POST'])
+@cross_origin(origins=['http://localhost:3001'])
 def extract_text():
     if 'file' not in request.files:
         return jsonify({'error': 'No file provided'}), 400
@@ -55,8 +55,8 @@ def extract_text():
         # Extract text based on file type
         if filename.lower().endswith('.pdf'):
             raw_text = process_pdf(filepath)
-        else:
-            raw_text = process_image(filepath)
+        # else:
+        #     raw_text = process_image(filepath)
         
         # Get structured data from LLM
         structured_data = ask_llm(raw_text)
@@ -74,61 +74,19 @@ def extract_text():
         # Clean up: Remove the file after processing
         os.remove(filepath)
         
-        return jsonify({
+        response = jsonify({
             'raw_text': raw_text,
             'structured_data': structured_data,
             'message': 'Report saved successfully'
-        }), 200
+        })
+        response.headers.add('Access-Control-Allow-Origin', 'http://localhost:3001')
+        return response, 200
 
     except Exception as e:
         # Clean up: Remove the file if an error occurs
         if os.path.exists(filepath):
             os.remove(filepath)
         return jsonify({'error': str(e)}), 500
-
-
-
-@app.route('/add-patient', methods=['POST'])
-def add_patient():
-    try:
-        patient_data = request.json
-        if not patient_data:
-            return jsonify({'error': 'No patient data provided'}), 400
-
-        result = patients_collection.insert_one(patient_data)
-        return jsonify({
-            'message': 'Patient added successfully',
-            'patient_id': str(result.inserted_id)
-        }), 201
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/get-patient/<patient_id>', methods=['GET'])
-def get_patient(patient_id):
-    try:
-        patient = patients_collection.find_one({"_id": ObjectId(patient_id)})
-        if not patient:
-            return jsonify({'error': 'Patient not found'}), 404
-
-        patient["_id"] = str(patient["_id"])
-        return jsonify(patient), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/get-all-patients', methods=['GET'])
-def get_all_patients():
-    try:
-        patients = list(patients_collection.find({}))
-        for patient in patients:
-            patient["_id"] = str(patient["_id"])
-        
-        return jsonify(patients), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/')
-def health_check():
-    return jsonify({'status': 'API running'}), 200
 
 if __name__ == '__main__':
     if not os.path.exists(UPLOAD_FOLDER):

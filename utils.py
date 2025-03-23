@@ -1,7 +1,6 @@
 import os
 import io
 import fitz
-import pytesseract
 from PIL import Image
 from werkzeug.utils import secure_filename
 from azure.ai.inference import ChatCompletionsClient
@@ -35,9 +34,9 @@ ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'bmp', 'gif', 'tiff', 'pdf'}
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-def process_image(image_path):
-    img = Image.open(image_path)
-    return pytesseract.image_to_string(img, lang='eng')
+# def process_image(image_path):
+#     img = Image.open(image_path)
+#     return pytesseract.image_to_string(img, lang='eng')
 
 def process_pdf(pdf_path):
     text = []
@@ -46,7 +45,7 @@ def process_pdf(pdf_path):
         page = pdf_document.load_page(page_num)
         pix = page.get_pixmap()
         img = Image.open(io.BytesIO(pix.tobytes('ppm')))
-        text.append(pytesseract.image_to_string(img, lang='eng').strip())
+        # text.append(pytesseract.image_to_string(img, lang='eng').strip())
     pdf_document.close()
     return '\n\n'.join(text)
 
