@@ -9,7 +9,7 @@ from utils import (
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 # Configuration
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -22,6 +22,7 @@ def extract_text():
         return jsonify({'error': 'No file provided'}), 400
     
     file = request.files['file']
+    print(file)
     if not file or not allowed_file(file.filename):
         return jsonify({'error': 'Invalid file'}), 400
 
