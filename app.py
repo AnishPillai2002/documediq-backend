@@ -16,7 +16,6 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB limit
 
 
-
 @app.route('/extract-text', methods=['POST'])
 def extract_text():
     if 'file' not in request.files:
@@ -38,12 +37,22 @@ def extract_text():
         if not patients_collection.find_one({"_id": ObjectId(patient_id)}):
             return jsonify({'error': 'Patient not found'}), 404
 
+        # Secure the filename and save the file
         filename = secure_filename(file.filename)
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        
+        # Save the file and wait for it to complete
         file.save(filepath)
         
-        # Extract text
-        raw_text = process_pdf(filepath) if filename.lower().endswith('.pdf') else process_image(filepath)
+        # Verify that the file exists and is not empty
+        if not os.path.exists(filepath) or os.path.getsize(filepath) == 0:
+            return jsonify({'error': 'File upload failed or file is empty'}), 500
+
+        # Extract text based on file type
+        if filename.lower().endswith('.pdf'):
+            raw_text = process_pdf(filepath)
+        else:
+            raw_text = process_image(filepath)
         
         # Get structured data from LLM
         structured_data = ask_llm(raw_text)
@@ -58,7 +67,9 @@ def extract_text():
         }
         reports_collection.insert_one(report_data)
         
+        # Clean up: Remove the file after processing
         os.remove(filepath)
+        
         return jsonify({
             'raw_text': raw_text,
             'structured_data': structured_data,
@@ -66,12 +77,10 @@ def extract_text():
         }), 200
 
     except Exception as e:
+        # Clean up: Remove the file if an error occurs
+        if os.path.exists(filepath):
+            os.remove(filepath)
         return jsonify({'error': str(e)}), 500
-
-if __name__ == '__main__':
-    if not os.path.exists(UPLOAD_FOLDER):
-        os.makedirs(UPLOAD_FOLDER)
-    app.run(host='0.0.0.0', port=5000, debug=True)
 
 
 
